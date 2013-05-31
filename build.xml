@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<project name="rss2Mobile Site Build Script" default="init" basedir=".">
+
+	<property environment="env" />
+	<property name="build.compiler.emacs" value="true" />
+	<property name="classpath" value="${env.CLASSPATH}"/>
+	<property name="src.dir" value="${basedir}/src"/>
+	<property name="dist.dir" value="${basedir}/dist"/>
+	<property name="build.classes.dir" value="${basedir}/classes"/>
+	<property name="project.name" value="rss2MobileSite"/>
+
+
+	<path id="project.class.path">
+		<pathelement location="${classpath}"/>
+		<pathelement location="${build.classes.dir}"/>
+	</path>
+
+
+	<path id="apache.commons.io.path">
+		<pathelement location="${basedir}/libs/commons-io-2.4.jar"/>
+	</path>
+
+	<path id="apache.commons.lang.path">
+		<pathelement location="${basedir}/libs/commons-lang-2.6.jar"/>
+	</path>
+
+
+	 <target name="compile-classes" depends="init">
+		<mkdir dir="${build.classes.dir}"/>
+		<javac debug="off" deprecation="off" destdir="${build.classes.dir}" nowarn="true" optimize="on" srcdir="${src.dir}">
+				<classpath refid="project.class.path"/>
+				<classpath refid="apache.commons.io.path"/>
+				<classpath refid="apache.commons.lang.path"/>
+
+		</javac>
+	</target>
+
+
+	 <target name="make-jar" depends="compile-classes">
+			<delete file="${dist.dir}/${project.name}.jar"/>
+			<jar destfile="${dist.dir}/${project.name}.jar">
+				<fileset dir="${build.classes.dir}"  excludes="**/Test.class"/>
+				<fileset dir="${basedir}/libs"/>
+				<manifest>
+					<attribute name="Main-Class" value="com.pa.feed.Convert"/>
+					<attribute name="Class-Path" value="libs/commons-io-2.4.jar libs/commons-lang-2.6.jar"/>
+				</manifest>
+			</jar>
+
+	 </target>
+
+	 <target name="make-dist" depends="make-jar">
+			<copy todir="${dist.dir}/libs">
+				 <fileset dir="${basedir}/libs"/>
+			</copy>
+			<copy todir="${dist.dir}/static-content">
+				 <fileset dir="${basedir}/static-content"/>
+			</copy>
+	 </target>
+
+
+	<target name="init" >
+		<echo message="Project Name=${project.name}" />
+		<echo message="Using Source directory=${src.dir}" />
+		<echo message="Jar file built in =${dist.dir}" />
+		<echo message="ant make-jar to compile and build jar" />
+		<echo message="ant make-dist to build distribution " />
+	</target>
+
+</project>

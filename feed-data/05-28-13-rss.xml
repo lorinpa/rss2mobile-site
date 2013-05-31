@@ -1,0 +1,1011 @@
+<?xml version="1.0" encoding="utf-8" ?><rss version="2.0" xml:base="http://public-action.org/mobile-javascript-articles" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Mobile Application Programmer Journal </title>
+    <link>http://public-action.org/mobile-javascript-articles</link>
+    <description></description>
+    <language>en</language>
+          <item>
+    <title>Responsive Resume Project - Persisting Data </title>
+    <link>http://public-action.org/content/mobile-responsive-resume-project-persisting-data</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note, this articles is part of a series (&lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In the previous installment we started implementing &quot;must have&quot; functions. Our focus is to release a working (demonstration) version of our application, as soon as possible. In this installment we will continue that process.&lt;/p&gt;
+&lt;p&gt;Currently, our application allows a user to create a basic &quot;resume&quot; document. The user can add, delete and update, rows and columns. The most pressing issue is, the application is not peristing the user&#039;s work. That is what we are going to focus on in this installment, &quot;persisting data locally&quot;.&lt;/p&gt;
+&lt;p&gt;Persisting data locally means, we want the user to be able to save their work on their local machine. The user can save their work while offline. Our application&#039;s storage architecture is similar to a traditional &quot;desktop&quot; application. &lt;/p&gt;
+&lt;p&gt;When we started designing this project, we said up front the intended audience consists of web developers. Thus, our intended audience should be familiar with the following concepts. The user must know how to navigate the file system, understand file names, file types. &lt;/p&gt;
+&lt;p&gt;HTML5 specifies several mechanism for a local persistence.  The mechanism referred to as &quot;local storage&quot; is implemented the most across web browsers. I&#039;ll summarize &quot;local storage&quot; as an embedded database. An embedded database that is dedicated to a particular web browser. What that means to a user is, data saved while using Firefox is not accessible while using Chromium (or any other browser, vice versa, etc). So local storage has some limitations.&lt;/p&gt;
+&lt;p&gt;HTML5 also introduces a file system api. That means we can engineer a dialog that allows the user to choose a file location to save their work. When the user saves their work to a local file, that information is accessible from any HTML5 web browser.&lt;/p&gt;
+&lt;p&gt;In addition to those 2 options (local storage and external file), we have a user experience (UX) issue to consider. When the user saves there work as an external file, they have to choose a location and a file name.  If a user saves there work to the web browser&#039;s &quot;local storage&quot;, the user does not have to choose a file location. Thus, the users performs far less steps when saving their work &quot;local storage&quot; (versus external file). So we are going to give the user both options. We&#039;ll suggest that they save minor changes to their work in the web browser&#039;s local storage. When the user completes a major revision of their work, we recommend they save to an external file.&lt;/p&gt;
+&lt;p&gt;As mentioned above, out application&#039;s storage is similar to a &quot;desktop&quot; application. The analogy would be working with a spreadsheet program like MS Excel or LibreOffice. The spreadsheet programs by default, saves the user&#039;s work in a internal format. If the user wants to share their work with other folks or other applications, they export the data as a comma delimited file (csv).&lt;/p&gt;
+&lt;p&gt;JavaScript&#039;s internal data format is JavaScript Object Notation (JSON). So our &quot;row&quot; entity is represented in JSON as such:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+{&quot;row_id&quot;:1, &quot;location&quot;:6}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Our rowList entity is represented as (I.E. JSON array):&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+[{&quot;row_id&quot;:1,&quot;location&quot;:1}, {&quot;row_id&quot;:5,&quot;location&quot;:2}]
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;We can also represent our rowList as a JSON object as such:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+{&quot;rowList&quot;: [{&quot;row_id&quot;:1,&quot;location&quot;:1}, {&quot;row_id&quot;:5,&quot;location&quot;:2}]}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;So we can persist our grid by storing 3 JSON arrays:&lt;/p&gt;
+&lt;p&gt;rows&lt;br /&gt;
+columns&lt;br /&gt;
+row_columns&lt;/p&gt;
+&lt;p&gt;The same JSON data can be stored in either the web browser&#039;s embedded database (AKA local storage) or an external file (E.G. my_resume.json).  The file type &quot;json&quot; is optional, but recommended. Later in the project the application will also allow the user to publish an html representation of their work. If you get used to assigning descriptive file types, you&#039;ll have a much easier time organizing your data.&lt;/p&gt;
+&lt;p&gt;So let&#039;s outline our new menu items.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Document
+&lt;ul&gt;
+&lt;li&gt;Import File Data&lt;/li&gt;
+&lt;li&gt;Export File Data&lt;/li&gt;
+&lt;li&gt;Save to local database.&lt;/li&gt;
+&lt;li&gt;Load from local database&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Let&#039;s look at some of the implementation. Here is how our griid stores the lists (rows, columns and row_columns):&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+this.store = function() {
+        try {
+            localStorage.setItem(&quot;rows&quot;,JSON.stringify(this.rowList.list));
+            localStorage.setItem(&quot;columns&quot;,JSON.stringify(this.columnList.list));
+            localStorage.setItem(&quot;row_columns&quot;,JSON.stringify(this.list));
+        } catch(error) {
+            console.log(&quot;store() error : &quot; + error);
+        }
+};
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;There is another caveat to mention regarding the web browser&#039;s local storage. The web browsers can set size limits per application. Thus, the above method could trigger the catch condition if a size threshold has been reached. For our scenario, that&#039;s not likely, but still possible. My resume is pretty long and I haven&#039;t reached the size threshold. Either way, worth noting.&lt;/p&gt;
+&lt;p&gt;Now the method to load the data from local storage in to our application (grid):&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+this.load = function(target_el) {
+        try {
+            this.rowList.length =0;
+            this.columnList.length=0;
+            this.list.length =0;
+
+            this.rowList.importList(localStorage.getItem(&quot;rows&quot;));
+            this.columnList.importList(localStorage.getItem(&quot;columns&quot;));
+            this.importLocalList(localStorage.getItem(&quot;row_columns&quot;));
+            if (target_el) {
+                target_el.appendChild(this.render());
+            }
+
+        } catch(error) {
+            console.log(&quot;load() error &quot;+ error );
+        }
+};
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The reference to &quot;target_el&quot; is our effort to sequence our processing. As mentioned before, JavaScript programs by default do not process statements sequentially. The programmer is required to perform extra steps to insure sequence. Here, we want to repaint our document after the data has been loaded from the local storage. The localStorage.getItem calls are synchronous. That means each statement executes in the sequence as written. It also means that the 4th statement block. which renders our document, runs after the data is loaded.&lt;/p&gt;
+&lt;p&gt;If we have separated the local storage statements in one function and the call to render in another function, our the JavaScript engine would not run our statements in sequence we want. The method to load from local storage would be invoke asynchronously along with a call to render. In that scenario, we have no control over the sequence. Not obvious at all.&lt;/p&gt;
+&lt;p&gt;Another reason why I always string test everything. The unexpected sequence is identified when you include string testing in your  regular programming routine. &lt;/p&gt;
+&lt;p&gt;Here is our detailed implementation which loads the row_column array maintained by our grid entity:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+ this.importLocalList= function(import_list) {
+        var json_list = JSON.parse(import_list);
+        if (json_list &amp;&amp; (json_list instanceof Array || json_list instanceof Object)) {
+            var len = json_list.length;
+            var dataRow = null;
+            for (var nIndex = 0; nIndex &amp;lt; len; nIndex ++) {
+                dataRow = json_list[nIndex];
+                this.addRowColumn(new row_column(dataRow));
+            }
+        }
+ };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;What is with the old fashioned &quot;for loop&quot; ?&lt;/span&gt;&lt;br /&gt;
+I am a polyglot. I program in many languages, many who&#039;s syntax are based on &quot;C&quot;.  For example, &quot;Java&quot;, &quot;C&quot;, &quot;JavaScript&quot; all have a similar syntax. It is not unusual for me to literally copy my Java or C code in to a JavaScript listing, then make the appropriate language adjustments. If you&#039;ve implemented logic that works, why not use it as a basis of migrating to another environment. To summarize, the for look works pretty much the same in &quot;C&quot;, &quot;Java&quot; and &quot;JavaScript&quot;. So for me, there is an advantage, since I code in all 3 languages.&lt;/p&gt;
+&lt;p&gt;Now to the export file data implementation.&lt;/p&gt;
+&lt;p&gt;First we prepare our data, we represent it in JSON format:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+ this.toJson = function() {
+        var data = {
+            &quot;rows&quot;:JSON.stringify(this.rowList.list),
+            &quot;columns&quot;:JSON.stringify(this.columnList.list),
+            &quot;row_columns&quot;:JSON.stringify(this.list)
+        };
+        return data;
+    };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Now we need to create a file and a link to the file. That means the browser will display a native file dialog to the user. That allows the user to select the location. We&#039;ll also include an input element inside our link. That way our user can edit the file name.&lt;/p&gt;
+&lt;p&gt;We use additional more HTML5 features. A &quot;blob&quot; allows us to construct a in memory representation of a file (including mime type). Once we have our &quot;blob&quot; constructed we need to publish a link. We use the HTML5 window.URL.createObjectURL() method:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+  this.toBlob= function() {
+        if (! window.URL) {
+            // handle opera and safari
+            showErrorMessage(&quot;Sorry this function is not supported by your web browser.&quot;);
+            return;
+        }
+        var mime_type = &quot;application/json&quot;;
+        var data = JSON.stringify(this.toJson());
+        var bb = new Blob([data], {type: mime_type});
+        var a = document.createElement(&#039;a&#039;);
+        a.download = container.querySelector(&#039;input[type=&quot;text&quot;]&#039;).value;
+        a.download = &#039;resume.json&#039;;
+        a.href = window.URL.createObjectURL(bb);
+        a.textContent = &#039;Download ready&#039;;
+        a.dataset.downloadurl = [mime_type, a.download, a.href].join(&#039;:&#039;);
+        return a;
+    };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;All of our updated code is committed to out git hub repository here: &lt;a href=&quot;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&quot; target=&quot;_blank&quot;&gt;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;I also changed the onreadystatechange handler in our root html document. Now that we&#039;ve enabled the local storage, if the user re-loads, we now automatically repaint the page with the data stored in the local database.&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-responsive-resume-project-persisting-data#comments</comments>
+ <category domain="http://public-action.org/category/technology/featured">Featured</category>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Tue, 28 May 2013 12:53:13 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">125 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>Responsive Resume Project - Implementing UI/UX Functions</title>
+    <link>http://public-action.org/content/mobile-responsive-resume-project-implementing-functions</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note, this article is part of series  (see &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In our last installment we introduced our application&#039;s user interface (UI) and the subject of,  user experience (UX). We identified &quot;must have&quot; functions and started our implementation. &lt;/p&gt;
+&lt;p&gt;In this installment we continue to focus on implementing our &quot;must have&quot; UI/UX functions. Thus we are adding the following:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Delete a row.&lt;/li&gt;
+&lt;li&gt;Edit a cell (row_column) content.&lt;/li&gt;
+&lt;li&gt;Edit the width and indentation of a cell.&lt;/li&gt;
+&lt;li&gt;Delete a cell (row_column).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The above are public functions, functions the user invokes. To implement the above functions, we also require additional internal infra structure functions. For example, in prior articles we defined the following business rules:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A row must always contain at least one column.&lt;/li&gt;
+&lt;li&gt;If a user deletes the last column of a row, the application must delete the row itself.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The following method &lt;/p&gt;
+&lt;p&gt;In our last commit, we added an internal entity that serves as a collection of row_columns. We call that collection of row_columns a &quot;grid&quot;. Logically the grid represents our resume document. The grid provides the resume document&#039;s public properties and methods. That also means the &quot;grid&quot; is going to be composed of some of our other infra structure entities. Thus, I&#039;ve added an instance of  &quot;columnList&quot; and &quot;rowList&quot; to our grid. &lt;/p&gt;
+&lt;p&gt;Our grid now contains 3 collections, a columnList, a rowList and a list of row_columns (AKA cells). &lt;/p&gt;
+&lt;p&gt;Our grid can now count we the number of columns in each row. Here is our implementation:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+    /** Check to see if we this row is empty **/
+    this.getNumColumnsInRow=function(row_id) {
+	var len = this.list.length;
+	var elem = null;
+	var count = 0;
+	for (var nIndex=0; nIndex &amp;lt; len; nIndex++) {
+            elem = this.list[nIndex];
+            if (elem.getRowId() == row_id) {
+                count++;
+            }
+        }
+        return count;
+    };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;But wait, we are not done. If we delete a row at the top of the document, that effects all the rows below it. For example, we have 10 rows. The location property of the bottom row is 10. 10 is how the user identifies the bottom (AKA last) row. If we delete row 1 that means row 10 is now row 9. The last row now has a location value of 9. Thus, when we delete a row, we need to adjust the &quot;location&quot; properties of the remaining rows. The following method is our implementation:&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+ /** Delete a row entity from this row_list instance.
+    *   Moves the location values of all rows below the deleted row.
+    * */
+    this.deleteRow=function(row_id) {
+        var row_position = null;
+        var row_column = null;
+        var row  = null;
+        var column = null;
+        var row_column_delete_list = [];
+        var column_delete_list = [];
+        var len = this.list.length;
+        for (var nIndex= 0; nIndex &amp;lt; len; nIndex++) {
+            row_column = this.list[nIndex];
+            if (row_column &amp;&amp; (row_column.getRowId() == row_id)) {
+                row_column_delete_list.push(row_column);
+                column_delete_list.push(this.columnList.getColumn(row_column.getColumnId()));
+            }
+        }
+        len = row_column_delete_list.length;
+        for (var nIndex=0; nIndex &amp;lt; len; nIndex++) {
+            row_column = row_column_delete_list[nIndex];
+            this.deleteRowColumn(row_column);
+        }
+        len = column_delete_list.length;
+        for (var nIndex=0; nIndex &amp;lt; len; nIndex++) {
+            column = column_delete_list[nIndex];
+            if (this.getNumColumnReferences(column) === 0){
+                this.columnList.deleteColumn(column);
+            }
+        }
+        row = this.rowList.getRow(row_id);
+        row_position = row.getLocation();
+        this.rowList.deleteRow(row_id);
+        // finally renumber the location values
+        len = this.list.length;
+        var location = null;
+        for (var nIndex=0; nIndex &amp;lt; len; nIndex++){
+            row_column = this.list[nIndex];
+            row = this.rowList.getRow(row_column.getRowId());
+            if (row.getLocation() &gt; row_position) {
+                location = row.getLocation();
+                if (location &gt; 0) {
+                    location = location -1;
+                    row.setLocation(location);
+                }
+            }
+        }
+    };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Why are we looking at the application through a microscope. What is the point?&lt;/span&gt;&lt;br /&gt;
+Well, when you are part of an organization you need to explain the time duration required to implement a function. Often, when implementing details, you discover additional requirements. The additional requirements mean additional analysis testing ,etc.&lt;/p&gt;
+&lt;p&gt;You can always structure a document so folks who are in different organizational rows can focus or ignore certain sections of your document. For example an &quot;Executive Summary&quot; section. &lt;/p&gt;
+&lt;p&gt;Besides, terms like &quot;micro&quot; are subjective terms.&lt;/p&gt;
+&lt;p&gt;Truth be told, as I wrote the above micro-description, it forced me to verify I was indeed deleting empty rows. I actually discovered I had a defect, I was not deleting the row itself. The application worked from the user&#039;s perspective, but internally the application was storing unnecessary information. When you deploy a JavaScript application on a mobile device that type of micro-defect is magnified. On a full size desktop web browser, hanging on to a few unused rows is unlikely to adversely effect performance (and ultimately functionality). On a mobile device, we don&#039;t have that same luxury. &lt;/p&gt;
+&lt;p&gt;The process of documenting, implementing and testing are closely connected. My example is actually typical. While documenting I discovered a defect in my test plan and my code implementing. You may also find your documentation contains defects when you are testing or implementing code. &lt;/p&gt;
+&lt;p&gt;I&#039;ve committed all the new code to my Git Hub repository &lt;a href=&quot;https://github.com/lorinpa/resume-publisher/commit/6016a791a3cb9e01f017aa483f7a2a1b2e2f1e9f&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;If you study the commit, you&#039;ll see I made one additional change. I decided to simply use the Twitter Bootstrap Front-end framework&#039;s built-in drop-menu facility, rather than roll my own. My rational is, our published resumes do not include the application&#039;s menu. Thus, leveraging Bootstrap&#039;s working menu facility expedites our immediate goal of getting to a demonstration release of our project. I made an executive decision, the application menu is not a &quot;must have&quot; for our learning experience. At least not for this particular project.&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-responsive-resume-project-implementing-functions#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Fri, 24 May 2013 14:42:38 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">124 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>Responsive Resume Project - User Interface</title>
+    <link>http://public-action.org/content/mobile-responsive-resume-project-user-interface</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note, this article is part of series  (see &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In our last installment we looked at data structures. In this installment we will look at basic processes and architecture.&lt;/p&gt;
+&lt;p&gt;Our immediate goal is to get a working model up and running as quickly as possible. A working model is also know as a demonstration release (AKA alpha release). Typically a working model is partial implementation. We implement the crucial &quot;must have&quot; functions. &lt;/p&gt;
+&lt;p&gt;In the prior installment we created enough data to render a small grid (2 rows, 2 columns, 2 row_columns). However, we hard coded the content. Therefore, we need to implement a user interface. An interface that allows the user to create content. To create content, the user starts by adding the first row to the resume document. &lt;/p&gt;
+&lt;p&gt;Planning the user interface for simple functions such as &quot;add a row&quot; or &quot;add a column&quot; requires us to elaborate our definitions. Sometimes a definition has &quot;implied&quot; requirements. Sometimes a definition has ambiguities. The following statements demonstrate how we remove ambiguities and specify &quot;implied rules&quot;. Note! The writing style for &quot;requirement definitions&quot; is a little unusual. We over state requirements on purpose.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Each row has 2 distinct values. An id (a unique identifier). A location (the vertical position of the row).
+&lt;ul&gt;
+&lt;li&gt;The user identifies a row by it&#039;s location.&lt;/li&gt;
+&lt;li&gt;The application identifies a row by it&#039;s id.&lt;/li&gt;
+&lt;li&gt;The row id is an internal identifier. The row id id not display in the user interface.&lt;/li&gt;
+&lt;li&gt;The row location is a public identified. The row location is displayed in the user interface.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;A row location is always incremented by one. The first row location is a value of zero, The first row location positions the row at the top of the resume document.&lt;/li&gt;
+&lt;li&gt;When a user &quot;adds&quot; a row, the applications determines the maximum row location value and then increments the maximum row location by 1.&lt;/li&gt;
+&lt;li&gt;When a user &quot;adds&quot; a row, the application always adds the row to the bottom of the document.&lt;/li&gt;
+&lt;li&gt;A row can never have zero columns. Therefore, when a user adds a row, the application always populates the new row with at least one column.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;Let&#039;s start with &quot;add a new row&quot;. Per the rules above, the application must determine the last (maximum) row location. Two strategies come to mind: 1) We store the last row location as a property. 2) We iterate through the list of rows and compare row locations, deriving the &quot;last&quot; row location.  I choose the second option. Here is a sample implementation:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+    this.getLastRowLocation = function() {
+        var len = this.list.length;
+        var last =0;
+        var elem = null;
+        for (var nIndex =0; nIndex &amp;lt; len; nIndex++) {
+            elem = this.list[nIndex];
+            if (elem.getLocation()&gt; last) {
+                last = elem.getLocation();
+            }
+        }
+        return last;
+    };
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Sequential Processing and JavaScript&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;The only thing to note in the above code segment is the declaration of our var &quot;nIndex&quot;. JavaScript by default does not process statements sequentially. If &quot;nIndex&quot; was declared outside of the for loop, the JavaScript engine would not execute the statements in order. If there were 5 rows in our list, the Javascript engine would first increment nIndex till it&#039;s value is 4. After nIndex is assigned a value of 4,  then the Javscript engine executes &quot;elem = this.list[Index]&quot;. Thus, our list would not be iterated through as expected. &lt;/p&gt;
+&lt;p&gt;We have to declare &quot;nIndex&quot; inside the for loop. That forces the JavaScript engine to iterate through the list as expected. &lt;/p&gt;
+&lt;p&gt;The user interface for &quot;add a row&quot; is simply a menu item. In other words, the function is invoked by the user clicking on a menu item. Either a menu item the application always displays, or a &quot;drop down&quot; menu item the use must navigate too (before the application displays it).&lt;/p&gt;
+&lt;p&gt;Since we are now talking about html markup, lets discuss the basic user interface architecture. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Single Page Application&lt;/span&gt;&lt;br /&gt;
+Our application is going include one single html web page. &lt;/p&gt;
+&lt;p&gt;This project is a learning tool. The single page architecture is not really necessary for our &quot;responsive resume publisher&quot; application. However, the single page architecture is an important optimization strategy for mobile web apps.  When you transition to a second page, a second instance of the JavaScript engine must be loaded by the browser. That&#039;s a costly operation on many mobile devices.&lt;/p&gt;
+&lt;p&gt;To summarize, our menus, dialogues ,controls and resume work area will reside on one single web page (html document). We will either generate and remove elements as needed, or, we&#039;ll toggle elements between hidden and shown.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Menus, Dialogs and Event Listeners&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;One of the internal design decisions we have make regards Document Object Model (DOM) event listeners. Logically we want the user to be able to click on a row_column (cell) and invoke edit dialog. That means we need a JavaScript function listens for a &quot;click&quot; event. Two strategies come to mind:&lt;/p&gt;
+&lt;p&gt;1) Add a dedicated event listener to each row_column. Since the event listener is associated with a specific row_column, we are spared the tasking of determining which row_column the usee wants to edit. Folks who use JavaScript Model View Controller (MVC) frameworks like Backbone.js tend to associate event listeners with the &quot;model&quot;. The model represents data, so if we adopted that pattern, our click listener would be a property of our row_column&lt;/p&gt;
+&lt;p&gt;2) Add one single click listener that filters click events that occur on certain elements (I.E. row_columns). In this pattern, we need to determine which row_column was clicked.&lt;/p&gt;
+&lt;p&gt;When to two patterns we have another issue to consider. Our user has the ability to delete row_columns. That means if use pattern 1, we have to makes sure were deleting listeners along with the data.&lt;/p&gt;
+&lt;p&gt;This would be great place to set up a performance test and see if either pattern/strategy has a performance benefit. I am going to pick strategy/pattern 2. Only because pattern 2 seems less work to implement, less testing, etc. Thus, my guess is, implementing a single click listener cost less in development time. Later in the project, we may revist this decision.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Updating the page display.&lt;/span&gt;&lt;br /&gt;
+Out next decision concerns how render changes to our page display.&lt;/p&gt;
+&lt;p&gt;In our current grid.render() method, we dynamically create the html elements that house our data. In other words, the html markup (and css rules) are stored in the application html page document. The JavaScript application generates the html markup when a request is made to render the document. &lt;/p&gt;
+&lt;p&gt;The prime task of our application is to custom resume documents. Each document may vary in number of rows, columns and css style rules. The resume document (as it&#039;s worked on by the resume writer), is in essence dynamic.&lt;/p&gt;
+&lt;p&gt;Our current task to construct or menus and dialogues. The application&#039;s menus and dialogues is relatively static. As we build the application, we might add our change a menu item. However, each user is going to have access to the same number of menu items and same number of application dialogues. &lt;/p&gt;
+&lt;p&gt;Thus, the applications menus and dialogues will be stored statically in the application&#039;s single page html document. We&#039;ll add the html markup for the various dialogues in the body of our application document. The default display state for our dialogues will be &quot;hidden&quot;. When a user chooses to invoke the dialog, we change the dialogues display state to &quot;show&quot; (I.E. technically we set the style rule from display:hidden to display:block;).&lt;/p&gt;
+&lt;p&gt;This decision is also consistent with our decision on event listeners. We just create the corresponding event listeners for our menus and dialogues with the single page application&#039;s creation. We will literally create and attach the listeners when the document emits the &quot;ready&quot; signal.&lt;/p&gt;
+&lt;p&gt;Note. Our projects code and wiki are located on Git Hub. Right now we are on branch dev-1.0 here:&lt;br /&gt;
+&lt;a href=&quot;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&quot; target=&quot;_blank&quot;&gt;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Build or Obtain?&lt;/span&gt;&lt;br /&gt;
+Do we write markup for user interface from scratch or do we leverage some existing tool (E.G. Twitter Bootstrap front-end framework). There is no right or wrong answer here. &lt;/p&gt;
+&lt;p&gt;A short explanation for an otherwise &quot;arbitrary&quot; decision :) I&#039;m not a designer. Becoming a designer is not in this project&#039;s scope. I&#039;ll use a &quot;custom download&quot; of Twitter Bootstrap front-end framework. Everything except the JavaScript components. I&#039;ll add a few CSS rules to our application, that will enable the Twitter Bootstrap menu to &quot;drop-down&quot;. Later, if necessary we&#039;ll add a JavaScript event listener to enable the menu &quot;drop-down&quot; via a click event. &lt;/p&gt;
+&lt;p&gt;This project&#039;s focus is to learn JavaScript programming, JavaScript programming optimization techniques that will be used on a mobile device. Thus, we will &quot;obtain&quot; the superior Twitter Bootstrap menu design/layout. We&#039;ll build the rest. &lt;/p&gt;
+&lt;p&gt;In other words, no critique if Twitter&#039;s JavaScript library or jQuery&#039;s. I simply want to explore how to build it manually. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;First Cut&lt;/span&gt;&lt;br /&gt;
+First cut will include the following:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Top Drop Down Menu
+&lt;ul&gt;
+&lt;li&gt;Document&lt;/li&gt;
+&lt;li&gt;Row
+&lt;ul&gt;
+&lt;li&gt;Add Row
+&lt;/li&gt;&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Column
+&lt;ul&gt;
+&lt;li&gt;Add Column&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Bottom Status Bar&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Here is first cut implementation. We&#039;ve moved our JavaScript file listings to a sub-directory (js/local/). We&#039;ve added the fore-mentioned CSS rules to implement our &quot;drop down&quot; menu. All of the source code is listed &lt;a href=&quot;http://public-action.org/content/mobile-responsive-resume-project-user-interface-source-code&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-responsive-resume-project-user-interface#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Sun, 19 May 2013 19:05:38 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">122 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>Responsive Resume - Internal Design - Data Structures</title>
+    <link>http://public-action.org/content/mobile-responsive-resume-internal-design</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;In our prior article we introduced the business and functional requirements for our Resume Publishing application. Business requirements detail &quot;what&quot; the does and &quot;why&quot; someone uses the the application. In this installment, we discuss the internal requirements. That is, &quot;how&quot; the application performs it&#039;s functions.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Data Structure Summary&lt;/span&gt;&lt;br /&gt;
+Per our business and functional requirements the resume document is divided logically into row and columns. &lt;/p&gt;
+&lt;p&gt;The resume document contains one to many rows.&lt;/p&gt;
+&lt;p&gt;Each row contains one to twelve columns. &lt;/p&gt;
+&lt;p&gt;Each column contains a content property and a width property.&lt;/p&gt;
+&lt;p&gt;Each row contains a location property. (I.E. it&#039;s line number within the resume document).&lt;/p&gt;
+&lt;p&gt;The relationship between a row and a column is referred to as a row_column (or cell). &lt;/p&gt;
+&lt;p&gt;Each row_column contains a location property (I.E. horizontal position of the column inside the row). Note! This also allows for a future enhancement where a column is defined once but displayed many times within the document.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Data Structure Details&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;text-decoration:underline;&quot;&gt;Row&lt;/span&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&quot;id&quot; an integer which serves as a unique identifier (key) for the row.&lt;/li&gt;
+&lt;li&gt;&quot;location&quot; an integer which defines the rows vertical position in the document.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;text-decoration:underline;&quot;&gt;Column&lt;/span&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&quot;id&quot; an integer which serves as a unique identifier (key) for the column.&lt;/li&gt;
+&lt;li&gt;&quot;content&quot; either plain text or html markup.&lt;/li&gt;
+&lt;li&gt;&quot;cssClass&quot; a CSS class assigned to this column&#039;s parent html div element. Default value is the Twitter Bootstrap front-end framework rule &quot;span1&quot;. &quot;span1&quot; means the column takes up 1/12th of the row&#039;s width. span2 2/12th&#039;s of the row&#039;s width, etc, etc.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;text-decoration:underline;&quot;&gt;Row_Column&lt;/span&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;AKA &quot;cell&quot;&lt;/li&gt;
+&lt;li&gt;&quot;id&quot; an integer which serves as a unique identifier (key) for this  row_column.&lt;/li&gt;
+&lt;li&gt;&quot;row_id&quot; number which identifies the row.&lt;/li&gt;
+&lt;li&gt;&quot;column_id&quot; number which identifies the column.&lt;/li&gt;
+&lt;li&gt;&quot;location&quot; horizontal position of the column within the row.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;text-decoration:underline;&quot;&gt;Collection&lt;/span&gt;&lt;br /&gt;
+We need a collection (list) for each of the above entities:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;rowList&lt;/li&gt;
+&lt;li&gt;columnList&lt;/li&gt;
+&lt;li&gt;grid (AKA row_column list)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Each collection must allow us to:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Add a entity.&lt;/li&gt;
+&lt;li&gt;Retrieve and entity by it&#039;s id (key).&lt;/li&gt;
+&lt;li&gt;Allow us to iterate through the list and retrieve all the entities.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Display Attributes&lt;/span&gt;&lt;br /&gt;
+As mentioned before, we are going use the &lt;a href=&quot;http://twitter.github.io/bootstrap/&quot; target=&quot;_blank&quot;&gt;Twitter Bootstrap front-end framework&lt;/a&gt; to produce our &quot;responsive&quot; layout. &lt;/p&gt;
+&lt;p&gt;Specifically, we are going to use the &quot;Fluid Grid system&quot; described here: &lt;a href=&quot;http://twitter.github.io/bootstrap/scaffolding.html#fluidGridSystem&quot; target=&quot;_blank&quot; &gt;http://twitter.github.io/bootstrap/scaffolding.html#fluidGridSystem&lt;/a&gt;. As mentioned above, each row is contains one to twelve columns. Twitter Bootstrap &quot;span[n]&quot; CSS class defines the column width. So &quot;span1&quot; is 1/12th the width of the row. &quot;span12&quot; would make the column&#039;s width 100% of the row&#039;s width. All rows contain the same width. &lt;/p&gt;
+&lt;p&gt;In addition, you can a second Twitter Bootstrap CSS class to indent a column. For examaple, &quot;offset2&quot; indents the column 2/12th&#039;s of the row. I would refer to the Twitter Bootstrap front-end framework official documentation for further details. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Data Rules and Validations&lt;/span&gt;&lt;br /&gt;
+For the initial design and release we aren&#039;t going to implement any validations. However, we do have a couple rules worth noting.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;When a user deletes a column from a row, the application must check to see if there are any remaining columns. In other words the application must identify when a user has deleted all columns within in a row. If there are no columns remaining, the application must delete the row also.&lt;/li&gt;
+&lt;li&gt;To help the user identify a row_column (cell), the application should supply a default content value.&lt;/li&gt;
+&lt;li&gt;The application should display row and column locations during edit actions (add, update, delete, etc.) &lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Initial Implementation on GitHub&lt;/span&gt;&lt;br /&gt;
+I&#039;ve added our project to &lt;a href=&quot;https://github.com/&quot; target=&quot;_blank&quot;&gt;GitHub&lt;/a&gt; here:&lt;br /&gt;
+&lt;a href=&quot;https://github.com/lorinpa/resume-publisher&quot; target=&quot;_blank&quot;&gt;https://github.com/lorinpa/resume-publisher&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;I implemented just enough of our requirements to render a simple grid. &lt;/p&gt;
+&lt;p&gt;I added the html, css and JavaScript in branch dev-1.0 here:&lt;br /&gt;
+&lt;a href=&quot;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&quot; target=&quot;_blank&quot;&gt;https://github.com/lorinpa/resume-publisher/tree/dev-1.0&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;We our next installments, we will implement the rest of our application&#039;s requirements. &lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-responsive-resume-internal-design#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Tue, 14 May 2013 22:58:07 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">120 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>Responsive Resume -- Defining the Application</title>
+    <link>http://public-action.org/content/mobile-responsive-resume-building-application</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note! This article is part of a series (see &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In prior installments of this series (see here), we demonstrated tools used to develop JavaScript applications.  In this installment, we define our first mobile development project. &lt;/p&gt;
+&lt;p&gt;We start by describing business requirements. Business requirements describe &quot;what&quot; the application does and &quot;why&quot; someone would use the application. &lt;/p&gt;
+&lt;p&gt;Typically, &quot;business requirements&quot; are published in a formal document. I&#039;m not going to publish a formal document here. However, we&#039;ll follow the basic document outline. We are also going to combine business and functional requirements in this article.&lt;/p&gt;
+&lt;p&gt;First a summary of our project.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Background&lt;/span&gt;&lt;br /&gt;
+Last summer I read a great article published on &lt;a href=&quot;http://alistapart.com/&quot; target=&quot;_blank&quot;&gt;A List Apart&lt;/a&gt; here: &lt;a href=&quot;http://alistapart.com/article/a-case-for-responsive-resumes&quot; target=&quot;_blank&quot;&gt;http://alistapart.com/article/a-case-for-responsive-resumes&lt;/a&gt; . A Case for Responsive Résumés by &lt;a href= &quot;http://alistapart.com/author/Antibland&quot; target=&quot;_blank&quot;&gt; Andrew Hoffman&lt;/a&gt;. The author makes a compelling argument for publishing your resume in a format that it can be viewed on any type of device. I took a look at the author&#039;s demo  &lt;a href=&quot;http://d.alistapart.com/a-case-for-responsive-resumes/demo.html&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;, using my mobile phone. Too me, that is a great looking resume and a great idea. &lt;/p&gt;
+&lt;p&gt;I need a new resume that reflects my web development skills. I don&#039;t have the design skills that Andrew Hoffman has (or any of the folks at A List Apart). However, I know a little about programming, web technologies. I think I  can adopt the idea of a &quot;Responsive Resume&quot;. I&#039;ll build an application to generate a &quot;Responsive Resume&quot;. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;:&gt;Purpose&lt;/span&gt;&lt;br /&gt;
+I want other folks to be able to read my resume on their mobile phone. I want write my resume on a full size computer (E.G. notebook or laptop). Publish my resume on my full size computer. The email my resume to other folks mobile device &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Application Users&lt;/span&gt;&lt;br /&gt;
+This application is intended to be used by developers. Folks like myself who are familiar with HTML and CSS. That means our application places the responsibility of valid markup on the user. &lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Application Workflow&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;One a full sized device (E.G. desktop or notebook) we&#039;ll create, update and publish versions of our resume. &lt;/p&gt;
+&lt;p&gt;We&#039;ll send our resume to other folks via a email (as an attachment). &lt;/p&gt;
+&lt;p&gt;The recipient detaches (downloads) our resume from our email message.&lt;/p&gt;
+&lt;p&gt;Once our resume is detached. our friends can view it with their mobile web browser.&lt;/p&gt;
+&lt;p&gt;Since a picture is worth a thousand words, here is a screen shot of my prototype application. Note! The following image is a screen shot of the application, thus the top menu. The published resume would look the same, that is, minus the menu (the published resume does not contain a menu). &lt;/p&gt;
+&lt;div style=&quot;margin:10px;&quot;&gt;
+&lt;div style=&quot;float:left;margin-right:8px;&quot;&gt;
+&lt;img src=&quot;http://public-action.org/sites/default/files/articles/js/one/app-template.png&quot; style=&quot;overflow:scroll;&quot; /&gt;
+&lt;/div&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Functional Summary&lt;/span&gt;&lt;br /&gt;
+The published resume automatically adjusts it&#039;s layout to the device size. &lt;/p&gt;
+&lt;p&gt;The published resume adjusts it&#039;s layout when the orientation of the phone is changed (I.E. moved sideways, between portrait and landscape modes). &lt;/p&gt;
+&lt;p&gt;The application divides the resume document in to a grid of cells (I.E. rows and columns).&lt;/p&gt;
+&lt;p&gt;The user can add, move or delete rows.&lt;/p&gt;
+&lt;p&gt;The user can add columns to a row. &lt;/p&gt;
+&lt;p&gt;The user can delete columns from a row.&lt;/p&gt;
+&lt;p&gt;The use can add plain text to a column,&lt;/p&gt;
+&lt;p&gt;The user can add html markup (including inline CSS) to a column.&lt;/p&gt;
+&lt;p&gt;The application assigns a default CSS class to each columns parent element (I.E. cell container). &lt;/p&gt;
+&lt;p&gt;The CSS column parent class defines the column&#039;s width within the row.&lt;/p&gt;
+&lt;p&gt;The CSS column parent class can also define a columns indentation within a column.&lt;/p&gt;
+&lt;p&gt;The user can save the document&#039;s raw data to the web browser&#039;s embedded database (by clicking on the application&#039;s menu). &lt;/p&gt;
+&lt;p&gt;The user can save the document&#039;s raw data to their computer&#039;s file system (by clicking on the application&#039;s menu). &lt;/p&gt;
+&lt;p&gt;The user can publish the resume as a standalone html document (by clicking on the application&#039;s menu and completing a file dialog).&lt;/p&gt;
+&lt;p&gt;The published resume can use any CSS3 graphics (E.G. gradient background colors, shadow effects, transitions, etc.).&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;Other Function Features&lt;/span&gt;&lt;br /&gt;
+The application works whether the host computer is online or offline. This is a stand alone application. There is no server requirement. &lt;/p&gt;
+&lt;p&gt;The application persists the user&#039;s work between (work) sessions. The application stores the resume raw data in the web browser&#039;s HTML 5 localStorage database (when the user selects store from the application&#039;s menu). The application stores the resume raw data in the file system (when the user selects &quot;export raw data&quot; from the application&#039;s menu.).&lt;/p&gt;
+&lt;p&gt;The user can maintain multiple versions of their resume by storing either the raw data or published html documents on a file or version control system.&lt;/p&gt;
+&lt;p&gt;The user can email the application itself to other users.&lt;/p&gt;
+&lt;p&gt;We distribute resume templates along with the application. &lt;/p&gt;
+&lt;p&gt;The user can create and publish their own custom templates.&lt;/p&gt;
+&lt;p&gt;The application bundles a customized version of the &lt;a href=&quot;http://twitter.github.io/bootstrap/&quot; target=&quot;_blank&quot;&gt;Twitter Bootstrap front-end framework&lt;/a&gt;. Thus, most non-JavaScript components of the &lt;a href=&quot;http://twitter.github.io/bootstrap/&quot; target=&quot;_blank&quot;&gt;Twitter Bootstrap front-end framework&lt;/a&gt; are available in the published resume document.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-weight:bold;&quot;&gt;A Summary of Functions Not Included &lt;/span&gt;&lt;br /&gt;
+The published resume must be viewed in an HTML 5 compliant web browser. The published resume does not support legacy web browsers.&lt;/p&gt;
+&lt;p&gt;The application only functions when run from within a HTML 5 compliant web browser. The application does not support legacy web browsers. &lt;/p&gt;
+&lt;p&gt;The application does not provide a move column function. The user can simply copy and paste as a simple work around.&lt;/p&gt;
+&lt;p&gt;The application does not validate html markup. The user is expected to validate the mark up.&lt;/p&gt;
+&lt;p&gt;The application does not validate whether the number of columns added to a row exceed 12. &lt;/p&gt;
+&lt;p&gt;The application does not automatically save the document. The use must explicitly use the application&#039;s menu to persist (save) their work.&lt;/p&gt;
+&lt;p&gt;The application dialogues are not designed to be used on a mobile phone.&lt;/p&gt;
+&lt;p&gt;The application does not support external entity references such as images. sound files, flash files, audio or video files. The user can use markup which references an external resource (E.G. image.png file), however the application does not provide support for resolution (E.G. the computer is off line).
+&lt;/p&gt;&lt;/div&gt;
+&lt;p&gt;In our next installment, we will work on the internal requirements. That is &quot;how&quot; the application performs it&#039;s functions. &lt;/p&gt;
+&lt;p style=&quot;clear:both;&quot;&gt;&lt;br/&gt;&lt;/br/&gt;&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-responsive-resume-building-application#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Tue, 14 May 2013 17:31:39 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">119 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>JavaScript Tools -- Functional Testing and Debugging</title>
+    <link>http://public-action.org/content/mobile-javascript-tools-functional-testing-and-debugging</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note! This article is part of a series (see &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In previous articles we explored syntax, string and performance testing.  In this installation, we will explore functional testing and source code debuggers.&lt;/p&gt;
+&lt;p&gt;Our initial code really doesn&#039;t have much logic (see person.js detailed in previous articles). Right now, our person entity can only be identified by first and last name. In the real world we need additional properties to uniquely identify an individual person. In the U.S. we use a social security number. For our example code, lets just add a property called &quot;id&quot;. Id is a unique number.&lt;/p&gt;
+&lt;p&gt;We are also adding a collection of persons (E.G personList). Our collection will allow to get an an individual by their &quot;id&quot; value. &lt;/p&gt;
+&lt;p&gt;Our functional test is &quot;verify personList.getPerson(2) returns the person with an id value of 2&quot;. We&#039;ll add at 3 persons to our list. We&#039;ll make sure one of the persons has an id value of 2.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;Here is our new code:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var person = function(id, first_name, last_name) {
+    this.init = function(id,first_name,last_name) {
+        if (id) {
+            this.id = id;
+        }
+        if (first_name) {
+            this.first_name = first_name;
+        }
+        if (last_name) {
+            this.last_name = last_name;
+        }
+    };
+    this.getId = function() {
+        return this.id;
+    };
+    this.setId = function(id) {
+        this.id = id;
+    };
+    this.getFirstName = function() {
+        return this.first_name;
+    };
+    this.setFirstName=function(first_name) {
+        this.first_name = first_name;
+    };
+     this.getLastName = function() {
+        return this.last_name;
+    };
+    this.setLastName= function(last_name) {
+        this.last_name = last_name;
+    };
+    this.init(id,first_name, last_name);
+};
+
+var personList = function() {
+    this.list = [];
+    this.addPerson=function(person) {
+        this.list.push(person);
+    };
+    this.getPerson=function(person_id) {
+       var len = this.list.length;
+       var row = null;
+       var person_found = null;
+       for (var nIndex =0; nIndex &amp;lt; len; nIndex++) {
+            row = this.list[nIndex];
+            if (person_id == row.getId()) {
+                person_found = row;
+                break;
+            }
+       }
+       return person_found;
+    };
+};
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In addition, I want to verify that, internally,  the personList.getPerson() stop iterating (looping ) through the list as soon at it finds a match.  Thus well use a source code debugger to watch the code execution step by step. &lt;/p&gt;
+&lt;p&gt;We are going to use FireFox&#039;s JavaScript debugger. Thus, we will need to call our JavaScript program from a web page&lt;/p&gt;
+&lt;p&gt;Our web page list is test.html and it&#039;s source code is:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+&amp;lt;!DOCTYPE html&amp;gt;
+&amp;lt;html&amp;gt;
+  &amp;lt;head&amp;gt;
+    &amp;lt;title&gt;Test&amp;lt;/title&amp;gt;
+    &amp;lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot;&amp;gt;
+    &amp;lt;script type=&quot;text/javascript&quot; src=&quot;person.js&quot;&amp;gt;&amp;lt;/script&amp;gt;
+    &amp;lt;script&amp;gt;
+      var persons= new personList();
+      persons.addPerson(new person(2,&quot;joe&quot;,&quot;smoe&quot;));
+      persons.addPerson(new person(1,&quot;ed&quot;,&quot;smed&quot;));
+      persons.addPerson(new person(3,&quot;jane&quot;,&quot;doe&quot;));
+      persons.addPerson(new person(20,&quot;frank&quot;,&quot;tank&quot;));
+      var person_to_find = persons.getPerson(2);
+      console.log(person_to_find.getFirstName() + &quot; &quot; + person_to_find.getLastName() );
+    &amp;lt;/script&amp;gt;
+   &amp;lt;/head&amp;gt;
+ &amp;lt;body&amp;gt;
+ &amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;At this point. we now use the Firefox main menu and select &lt;File&gt;&lt;Open&gt;. Since our web page doesn&#039;t have any content. Firefox will display an empty body, but the title is displayed as &quot;Test&quot;. &lt;/open&gt;&lt;/file&gt;&lt;/p&gt;
+&lt;p&gt;Now to start debugger session. From the FireFox main menu, select &lt;Tools&gt;&lt;Web Developer&gt;&lt;Debugger&gt;. At the top of the debugger window is a drop down list which contains the various file listings which contain JavaScript defined in test.html. So in our case there are 2 entries in the drop down list 1) person.js and 2 test.html. We want to choose test.html.&lt;/debugger&gt;&lt;/web&gt;&lt;/tools&gt;&lt;/p&gt;
+&lt;p&gt;We want to set a break point on line 8. Click just left of the line number and the debugger will display a large blue dot (indicating a break point). &lt;/p&gt;
+&lt;p&gt;In the top left hand corner of the debugger as &quot;resume&quot;, &quot;Stop Over&quot; , &quot;Step In&quot; and &quot;Step Out&quot; controls. The following is a screen shot:&lt;/p&gt;
+&lt;div style=&quot;width:90%;overflow:scroll;&quot;&gt;
+&lt;img src=&quot;http://public-action.org/sites/default/files/articles/js/one/debugger.png&quot; style=&quot;overflow:scroll;&quot; /&gt;
+&lt;/div&gt;
+&lt;p&gt;To start the debugging session, use Firefox and &quot;reload&quot; the page. Either, place the mouse over the body of the empty &quot;test&quot; document, right click. select &quot;reload&quot;. Or, use the Firefox location bar and left click on the &quot;Reload current page&quot; icon.&lt;/p&gt;
+&lt;p&gt;The debugger stops page execution at line 8 (where we set out break point). Click on &quot;Step Over&quot; till we get to line 13. Note in the right pane, the debugger displays &quot;persons&quot; instance of the &quot;personList&quot;. We can watch the internal array as it&#039;s populated with &quot;person&quot; entities. &lt;/p&gt;
+&lt;p&gt;When we get to line 13 let&#039;s click &quot;Step In&quot; and inspect the our personList.getPerson() method. Once inside the getPerson() method click on &quot;Step Over&quot; till we return to the test.html and line 15 (E.G. console.log(person_to_find.getFirstName() +..... et) is executed.&lt;/p&gt;
+&lt;p&gt;Above the debugger, we can switch tools to &quot;Web Console&quot; (just left click on &quot;Web Console&quot;). The &quot;Web Console&quot; displays console output. In addition, there is a JavaScript command at the bottom of the display. In the next screen shot, I&#039;ve entered the command &quot;person_to_find.getLastName();&quot; to demonstrate use of the JavaScript command line.&lt;/p&gt;
+&lt;div style=&quot;width:90%;overflow:scroll;&quot;&gt;
+&lt;img src=&quot;http://public-action.org/sites/default/files/articles/js/one/web-console.png&quot; style=&quot;overflow:scroll;&quot; /&gt;
+&lt;/div&gt;
+&lt;p&gt;In the JavaScript console, we can use whatever is in scope. Since &quot;persons&quot; is global, we still have access to it. We can also issue Document Object Model (DOM) selection commands, like &quot;var div = document.querySelector(&quot;#some_id&quot;);&quot;. Right now that command doesn&#039;t return anything, because our document does not have any &quot;div&quot; elements with an &quot;id&quot; attribute of &quot;some_id&quot;.&lt;/p&gt;
+&lt;p&gt;Chromium as well as any other webkit based web browser also comes bundles with a source code debugger and a JavaScript console. In later installments of our series we will show you how to debug JavaScript running in your mobile browser.&lt;/p&gt;
+&lt;p&gt;To summarize, source code debuggers are great tool to have in your JavaScript programmer&#039;s tool chest. &lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px; #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-javascript-tools-functional-testing-and-debugging#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Mon, 13 May 2013 20:03:07 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">118 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>JavaScript Tools -- Documentation Generators</title>
+    <link>http://public-action.org/content/mobile-javascript-tools-documentation</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note! This article is part of a series. In prior articles we wrote a small JavaScript application. We string tested the application, verified syntax and tested performance ( see  &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In this installation, we will document our program. &lt;/p&gt;
+&lt;p&gt;We need to qualify what type of documentation we are referring to. In this case, it&#039;s &quot;internal documentation&quot;. We are describing &quot;how&quot; the program works internally. The intended audience is other programmers. If we were working on a project where we expected other programmers to use and extend our program, we would refer to this as an Application Programming Interface (API). In fact, most projects, when successful are subject to change, enhancements and new team member. Thus, most &quot;internal documentation&quot; is referred to as API documentation.  &lt;/p&gt;
+&lt;p&gt;Let&#039;s introduce another tool, jsdoc  here: &lt;a href=&quot;https://github.com/jsdoc3/jsdoc&quot; target=&quot;_blank&quot;&gt;https://github.com/jsdoc3/jsdoc&lt;/a&gt;). JsDoc is a documentation processor.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;Let&#039;s edit our JavaScript application and annotate the source. &lt;/p&gt;
+&lt;p&gt;JSDoc works the same way a lot of documentation tools work. Virtually all programming language allow a programmer to include &quot;comments&quot; in a programming. A comment is a note intended to read by other human beings. Most documentation tools read through a program listing and select the &quot;comment&quot; blocks. The documentation tool then looks for special characters, usually referred to as &quot;tags&quot;, to identify content intended to be published as &quot;documentation&quot;. &lt;/p&gt;
+&lt;p&gt;Similar tools would be JavaDoc Tool for Java (&lt;A href=&quot;http://docs.oracle.com/javase/1.5.0/docs/guide/javadoc/index.html&quot; targeet=&quot;_blank&quot;&gt;http://docs.oracle.com/javase/1.5.0/docs/guide/javadoc/index.html&lt;/a&gt;). Doxygen for C, C++, PHP&lt;br /&gt;
+and other languages (see &lt;a href=&quot;http://www.stack.nl/~dimitri/doxygen/index.html&quot; target=&quot;_blank&quot;&gt;http://www.stack.nl/~dimitri/doxygen/index.html&lt;/a&gt;).&lt;/p&gt;
+&lt;p&gt;To use JSDoc we need the tag reference located here: &lt;a href= &quot;https://code.google.com/p/jsdoc-toolkit/wiki/TagReference&quot; target=&quot;_blank&quot;&gt;https://code.google.com/p/jsdoc-toolkit/wiki/TagReference&lt;/a&gt;.&lt;br /&gt;
+Here is our updated source:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+/** Person entity.
+ * @property {string} first_name  given name of person
+ * @property {string} last_name  family name
+ * @constructor
+ * @class
+ */
+var person = function(first_name,last_name) {
+    /** @description init populates our first_name and last_name properties.
+     */
+    this.init = function(first_name,last_name) {
+        if (first_name) {
+            this.first_name = first_name;
+        };
+        if (last_name) {
+            this.last_name = last_name;
+        };
+    };
+    /** Gets the first_name property value.
+     *   @returns {string} first_name The first_name property value.
+     */
+    this.getFirstName = function() {
+        return this.first_name;
+    };
+    /** Sets the first_name property
+     *   @param {string} first_name given name value.
+     */
+    this.setFirstName=function(first_name) {
+        this.first_name = first_name;
+    };
+    /** @function
+     *   @returns {string} this.last_name the last_name property.
+    */
+     this.getLastName = function() {
+        return this.last_name;
+    };
+    /** Sets the last_name property
+    *   @param {string} family name value
+    */
+    this.setLastName= function(last_name) {
+        this.last_name = last_name;
+    };
+    /** executes our init method. */
+    this.init(first_name,last_name);
+};
+/** An person instance.
+ *  We will use this instance as a set up for our
+ *  performance tests.
+ */
+var joe = new person(&quot;joe&quot;,&quot;smoe&quot;);
+
+/** A test case. Get the value of
+ *  our person&#039;s first name. Print
+ *  it to the console.
+ */
+var firstName = null;
+firstName = joe.getFirstName();
+console.log(firstName);
+
+/** A test case. This test case also
+ * gets a value. However, we surround
+ * the statement in a try/catch block.
+ */
+var lastName = null;
+try {
+    lastName = joe.getLastName();
+    console.log(lastName);
+} catch(error) {
+    console.log(&quot;An error occured&quot;);
+}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Next, Create a directory for your API docs:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt;mkdir docs
+$workspace&gt;mkdir docs/api
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Let&#039;s create a short README file in the docs directory. The contents of the README file will serve as a cover sheet to our documentation set.&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt; cd docs
+$workspace&gt; echo &quot;This short program serves as an example and as a peformance test case.&quot; &gt; README
+$workspace&gt; ls
+api  README
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Here is our command line. This instructs JsDoc to produce our internal API document set:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt; cd $HOME/dev/jsdoc
+$dev/jsdoc&gt;./jsdoc -d /worspace/docs/api /workspace/person.js /workspace/docs/README
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;A brief explanation of the command line: &lt;/p&gt;
+&lt;p&gt;&quot;./jsdoc&quot; is the jsdoc program (and we are executing it). &lt;/p&gt;
+&lt;p&gt;-d tells  jsdoc where to create our documents. &lt;/p&gt;
+&lt;p&gt;person.js is our program listing. We need to include the full path to where person.hs resides. &lt;/p&gt;
+&lt;p&gt;The last option instructs jsdoc to add the contents of our README file in the index.html file of documentation set. In other words, the README file contents become the &quot;cover sheet&quot; for document set.&lt;/p&gt;
+&lt;p&gt;You can peruse the generated documentation &lt;a href=&quot;http://public-action.org/sites/default/files/articles/js/one/docs/api/index.html&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Once you figure out how to generate to document set, reproducing and updating the documentation is pretty easy. What you also find is, the documentation allows to you review the program structure as it changes during the project life cycle. &lt;/p&gt;
+&lt;p&gt;When we introduced the term &quot;internal documentation&quot;, we said the audience was &quot;other programmers&quot;. Actually, the internal documentation is great tool even for a project with one sole programmer. I often discover changes I want to make simply by documenting by my own code. &lt;/p&gt;
+&lt;p&gt;In addition, some projects have long life times. The team moves on. When the team revisits a project, the &quot;internal documentation&quot; is a great refresher course. &lt;/p&gt;
+&lt;p&gt;To summarize, jsdoc is great tool to have in your JavaScript programmer&#039;s tool chest. &lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px; #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-javascript-tools-documentation#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Sat, 11 May 2013 22:41:49 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">116 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>JavaScript Tools -- Performance Testing</title>
+    <link>http://public-action.org/content/mobile-javascript-tools-performance-testing</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note! This article is part of a series on Mobile development and JavaScript (see  &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In our previous installment &lt;a href=&quot;http://public-action.org/content/mobile-javascript-tools-syntax-and-string-testing&quot; target=&quot;_blank&quot;&gt;Javascript Tools -- Syntax and String Testing&lt;/a&gt;, we created a small program &quot;person.js&quot;. See below for listing.&lt;/p&gt;
+&lt;p&gt;Now lets run a performance test. At a JavaScript presentation I attended, a member of the audience suggested use of try/catch effects performance. I&#039;ve done a lot work in industries where fine-grained exception handling (including identification) is pretty standard. That means, it&#039;s usually unacceptable to implement a business function and not trap unexpected run time errors. So for me, use of a try/catch block is standard. So let&#039;s use our tiny application and test the performance. Let&#039;s see if adding a try/catch impacts performance. &lt;/p&gt;
+&lt;p&gt;Lets use &lt;a href=&quot;http://jsperf.com/&quot; target=&quot;_blank&quot;&gt;http://jsperf.com/&lt;/a&gt;. A really nice service and important tool.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;We&#039;ll take our person function and instantiate joe (see above). That&#039;s the test setup.&lt;/p&gt;
+&lt;p&gt;We&#039;ll create 2 test cases. 1) We&#039;ll get the first name with out using try/catch. 2) We&#039;ll get the last name, but we&#039;ll enclose the statements is a try/catch block.  &lt;/p&gt;
+&lt;p&gt;Test 1 is titled &quot;No try/catch&quot; :&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var firstName = null;
+firstName = joe.getFirstName();
+console.log(firstName);
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Test 2 is titled &quot;With try/catch&quot; :&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var lastName = null;
+try {
+    lastName = joe.getLastName();
+    console.log(lastName);
+} catch(error) {
+    console.log(&quot;An error occurred&quot;);
+}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Our setup code, as mentioned before is our person.js&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var person = function(first_name,last_name) {
+    this.init = function(first_name,last_name) {
+        if (first_name) {
+            this.first_name = first_name;
+        };
+        if (last_name) {
+            this.last_name = last_name;
+        };
+    };
+    this.getFirstName = function() {
+        return this.first_name;
+    };
+    this.setFirstName=function(first_name) {
+        this.first_name = first_name;
+    };
+    this.getLastName = function() {
+        return this.last_name;
+    };
+    this.setLastName= function(last_name) {
+        this.last_name = last_name;
+    };
+    this.init(first_name,last_name);
+}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Js Perf allows does not require not require you to publish your test immediately. Js Perf validates your test suite.  Thus you can tweak your test before publishing. Again, just really great tool.&lt;/p&gt;
+&lt;p&gt;I ran our short test suite and  published results &lt;a href=&quot; http://jsperf.com/try-catch-factor&quot; target=&quot;_blank&quot;&gt;here: http://jsperf.com/try-catch-factor&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;The other great thing about jsperf.com is, you can access their website with your mobile web browser and repeat the tests. FYI different browsers have different JavaScript engines (AKA loaders, virtual machines). &lt;/p&gt;
+&lt;p&gt;Preliminary results are try/catch is not a performance factor. However, those results are preliminary and perhaps the test it self can be improved. Technology changes, perhaps in a previous version of JavaScript inclusion of a try/catch block slowed down a program? Personally, I doubt that, but that why we test :)&lt;/p&gt;
+&lt;p&gt;To summarize, if we come to performance critical section of our application. We can use a performance testing tool like JS PERF to collect some empirical data.&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px; #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-javascript-tools-performance-testing#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Sat, 11 May 2013 20:13:07 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">115 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>JavaScript Tools -- Syntax and String Testing</title>
+    <link>http://public-action.org/content/mobile-javascript-tools-syntax-and-string-testing</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;Note! This article is part of a series (see  &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;). In this installation, we will explore syntax and string testing. &lt;/p&gt;
+&lt;p&gt;Let&#039;s start by writing a small JavaScript function.&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var person = function(first_name,last_name) {
+    this.init = function(first_name,last_name) {
+        if (first_name) {
+            this.first_name = first_name;
+        };
+        if (last_name) {
+            this.last_name = last_name;
+        };
+    };
+    this.getFirstName = function() {
+        return this.first_name;
+    };
+    this.setFirstName=function(first_name) {
+        this.first_name = first_name;
+    };
+    this.getLastName = function() {
+        return this.last_name;
+    };
+    this.setLastName=(last_name) {
+        this.last_name = last_name;
+    };
+    this.init(first_name,last_name);
+}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;When learning a computer language, one of the first issues you grapple with is syntax errors. So we are going to look a few tools that will help spot syntax errors.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;A little background on how I choose and install tools.  I use Linux, specifically the Arch Linux distribution here: https://www.archlinux.org/ . So I know this isn&#039;t for everyone, but it might be helpful to some folks. I&#039;ve used Arch Linux&#039;s package manage (Pacman) to install 2 different JavsScript engines:&lt;/p&gt;
+&lt;p&gt;Mozilla SpiderMonkey  &lt;a href=&quot;https://www.archlinux.org/packages/extra/i686/js/&quot; target=&quot;_blank&quot;&gt;https://www.archlinux.org/packages/extra/i686/js/&lt;/a&gt;&lt;br /&gt;
+and Google&#039;s V8 &lt;a href=&quot;https://www.archlinux.org/packages/community/i686/v8/&quot; target=&quot;_blank&quot;&gt;https://www.archlinux.org/packages/community/i686/v8/&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;At this point, I just want to make sure that person.js is syntactically correct. Here is how to invoke command line (&quot;workspace&quot; is my current directory&quot;).&lt;/p&gt;
+&lt;p&gt;SpiderMonkey&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt; js person.js
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;V8&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspance&gt; d8 person.js
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Note! &quot;js&quot; is SpiderMonkey&#039;s executable. &quot;d8&quot; is the V8 executable.&lt;/p&gt;
+&lt;p&gt;Here are our results:&lt;/p&gt;
+&lt;p&gt;SpiderMonkey&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt; js person.js
+person.js:19: SyntaxError: missing ; before statement:
+person.js:19:     this.setLastName=(last_name) {
+person.js:19: .................................^
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;V8&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspance&gt; d8 person.js
+person.js:19: SyntaxError: missing ; before statement:
+person.js:19:     this.setLastName=(last_name) {
+person.js:19: .................................^
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Doh!! I forgot to add &quot;=function&quot; on line line 21. So, let&#039;s fix it:&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var person = function(first_name,last_name) {
+    this.init = function(first_name,last_name) {
+        if (first_name) {
+            this.first_name = first_name;
+        };
+        if (last_name) {
+            this.last_name = last_name;
+        };
+    };
+    this.getFirstName = function() {
+        return this.first_name;
+    };
+    this.setFirstName=function(first_name) {
+        this.first_name = first_name;
+    };
+    this.getLastName = function() {
+        return this.last_name;
+    };
+    this.setLastName= function(last_name) {
+        this.last_name = last_name;
+    };
+    this.init(first_name,last_name);
+}
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Let&#039;s run it:&lt;/p&gt;
+&lt;p&gt;Let&#039;s run both engines again. However, I want to add some statements which test the functionality of our code. A short test that verifies functionality is sometimes referred to as &quot;string testing&quot;. Similar to &quot;unit testing&quot;, just not as formal.  To string test our code, we adjust the command line like so:&lt;/p&gt;
+&lt;p&gt;SpiderMonkey&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt; js
+js&gt; load(&quot;person.js&quot;);
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;V8&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspace&gt;d8
+d8&gt; load(&quot;person.js&quot;);
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Now let&#039;s add a small functional test. Both SpiderMonkey anf V8 allow you to interactively execute statements in the same manner.&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+&gt; var joe = new person(&quot;joe&quot;,&quot;smoe&quot;);
+&gt; var firstName = joe.getFirstName();
+&gt; firstName
+joe
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Both SpiderMonkey and V8 identified the location of my syntax error. But what if I need more specific hints on not only where the error is located but how I should fix it.  For extended help with syntax, let&#039;s use &lt;emphasis&gt;JS Hint&lt;/emphasis&gt; (at &lt;a href=&quot;http://jshint.com&quot; target=&quot;_blank&quot;&gt;jshint.com&lt;/a&gt;), Note! JS Hint has both an online utility and a stand alone utility you can install on your development machine.&lt;/p&gt;
+&lt;p&gt;I&#039;ve installed the standalone version (see instructions here http://jshint.com/install/).  Let&#039;s run the bad version of our code with jshint.&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+$workspance&gt; jshint person.js
+badperson.js: line 5, col 22, Unnecessary semicolon.
+badperson.js: line 8, col 22, Unnecessary semicolon.
+badperson.js: line 19, col 33, Missing semicolon.
+badperson.js: line 21, col 10, Unnecessary semicolon.
+badperson.js: line 23, col 2, Missing semicolon.
+
+5 errors
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Note! I&#039;ve also been using VIM as an editor. I happend to have Syntastic plugin for VIM ( see &lt;a href=&quot;http://www.vim.org/&quot; target=&quot;_blank&quot;&gt; http://www.vim.org/&lt;/a&gt; installed (see &lt;A href=&quot;https://github.com/scrooloose/syntastic&quot; target=&quot;_blank&quot;&gt;https://github.com/scrooloose/syntastic&lt;/a&gt;). Thus, the same syntax checks I just demonstrated are also available during my edit session with VIM.&lt;/p&gt;
+&lt;p&gt;Another note, JS HINT states there are 5 &quot;errors&quot;. Whether these are errors or &quot;warnings&quot;, I&#039;m not going to argue. Let&#039;s clear them.&lt;/p&gt;
+&lt;p&gt;There are also tools that run within your web browser. Let&#039;s take a quick look at Firefox and Chromium. I&#039;m using version 20.0.1 of Firefox and 26.0.1410.63 of Chromium. Both browsers provide a JavaScript console. You can paste you javacript in to either console and get the similar type of syntax check we performed with the SpiderMonkey and V8 command line engines. You can also enter the &quot;string test&quot; we demonstrated above with the javascript consoles.&lt;/p&gt;
+&lt;p&gt;Firefox also has a tool called Scratchpad. Scratchpad extends the js command line functionality by giving you access to Document Object Model (DOM). In other words. you can also string test code that manipulates your document.&lt;/p&gt;
+&lt;p&gt;Let&#039;s repeat our syntax and string test in Scratchpad. From the FireFox top menu bar, choose &lt;Tools&gt;&lt;Web Developer&gt;&lt;Scratchpad&gt;. We can either use Scatchpad&#039;s top menu and open the person.js file, or we can paste the code in to the Scratchpad edit area.  From the Scratchpad top menu, select &lt;Execute&gt;&lt;Run&gt;.  Scratchpad identifies the syntax error:&lt;/run&gt;&lt;/execute&gt;&lt;/scratchpad&gt;&lt;/web&gt;&lt;/tools&gt;&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+/*
+Exception: missing ; before statement
+@Scratchpad/8:27
+*/
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Let&#039;s edit the code, using Scratchpad&#039;s edit area and repeat the &lt;Execute&gt;&lt;Run&gt;command.  If Scratchpad doesn&#039;t report any errors we are ready to add our string test. This time we are going to adjust the string test so that the out put is displayed in the Firefox web browser JavaScript &quot;console&quot;. Here is our new code:&lt;/run&gt;&lt;/execute&gt;&lt;/p&gt;
+&lt;div class=&quot;geshifilter&quot;&gt;
+&lt;pre class=&quot;geshifilter-javascript&quot;&gt;
+var joe = new person(&quot;joe&quot;,&quot;smoe&quot;);
+var firstName = joe.getFirstName();
+console.log(firstName);
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Lets open the FireFox javascript console and verify the output. Go to FireFox main menu. select &lt;Tools&gt;&lt;Web Developer&gt;&lt;Web Console&gt;. OK, there is output &quot;joe&quot;.&lt;/web&gt;&lt;/web&gt;&lt;/tools&gt;&lt;/p&gt;
+&lt;p&gt;This tiny exercise, may not seem that useful right now.  However, later, you may later be working on a larger program where your code is running from within a web browser and cached with the HTML5 &quot;Application Cache&quot;.  In that scenario, running the string test from the command line. console or Scratchpad,  becomes a huge time saver. You can perform your syntax and string test without updating the server code, or clearing the &quot;Application Cache&quot; in your browser. Actually, clearing the &quot;Application Cache&quot; itself can require several steps. &lt;/p&gt;
+&lt;p&gt;The summarize, at certain phases of development simple syntax and string tests speed up the development process. Our next installment will take a look at performance testing.   &lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px; #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-javascript-tools-syntax-and-string-testing#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Sat, 11 May 2013 19:38:49 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">114 at http://public-action.org</guid>
+  </item>
+  <item>
+    <title>Mobile Application Programmer Journal - JavaScript Introduction</title>
+    <link>http://public-action.org/content/mobile-mobile-application-programmer-journal-javascript</link>
+    <description>&lt;div class=&quot;taxonomy-images&quot;&gt;&lt;/div&gt;&lt;p&gt;&lt;span style=&quot;color: #468847;background-color: #dff0d8;&lt;br /&gt;
+border-color;&quot;&gt;Note! This the first installment of series on mobile development. This series will cover different strategies and techniques.&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-style:italic;&quot;&gt;Why JavaScript?&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;I want to deliver an application via a web browser. Perhaps I&#039;ve developed an application for a small group of folks. I want get the initial application out the door as quickly as possible. A web application (App) that runs within a web browser spares me the overhead of vendor specific devices, operating systems and stores.  &lt;/p&gt;
+&lt;p&gt;As mentioned in the introduction above. A JavaScript web app is a strategy. Later in this series we&#039;ll discuss other strategies line native applications.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-style:italic;&quot;&gt;Doesn&#039;t JavaScript limit functionality? JavaScript running within a web browser?&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Modern version of JavaScript along with HTML5 and CSS3 provide a lot more functionality than the original ECMAScript standard released in 1997. &lt;/p&gt;
+&lt;p&gt;HTML5 provides database to persist data across sessions (I.E. offline) in the client. &lt;/p&gt;
+&lt;p&gt;Offline Processing. In addition to embedded databases, the HTML5 &quot;Application Cache&quot; functions as an install kit for you web application&#039;s artifacts. In other words, once installed, you can run a stand alone application. &lt;/p&gt;
+&lt;p&gt;Our example application will demonstrate how to replace the server with the javascript engine/loader running inside the web browser. In a mobile environment, reducing your application to one javascript engine, via a single page architecture, is a critical performance gain. &lt;/p&gt;
+&lt;p&gt;Our example application will reproduce functions typically performed by the server. For example, we&#039;ll produce a new html document, and a &quot;download link&quot; all within the web browser. &lt;/p&gt;
+&lt;p&gt;File Access. Our project will demonstrate how we can read from and write to the client file system, just like a traditional desktop application.&lt;/p&gt;
+&lt;p&gt;CSS3 and HTML5 together deliver a rich user interface, cross-platform and light weight. We leverage the web browser to deliver the functionality.&lt;/p&gt;
+&lt;!--break--&gt;&lt;!--break--&gt;&lt;p&gt;&lt;span style=&quot;font-style:italic;&quot;&gt;Isn&#039;t Javascript slow?&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Sure. performance is a challenge, specially on small devices. JavaScript has come along way from it&#039;s inception. We are going to demonstrate some optimization techniques. Performance needs to be measured in context. We need to look how many functions our application performs. What type of operations. What web browsers do we need to support? Granted most successful applications grow in size. However, it is still a good idea to analyze an application&#039;s requirement before ruling that JavaScript is too slow.&lt;/p&gt;
+&lt;p&gt;Also consider, the mobile market is in flux. Part of me is betting on the new FireFox OS. My first mobile JavaScript application was suffering from performance problems. I installed it on the Firefox OS simulator and it ran just like a native application.&lt;/p&gt;
+&lt;p&gt;&lt;span style=&quot;font-style:italic;&quot;&gt;What about a hybrid application, like phone gap/cordova?&lt;/span&gt;&lt;br /&gt;
+We&#039;ll explore that in this journal. I&#039;ve developed on an Android phone (v 2.8) with phone gap/cordova. The big feature for me was the ability to write your own native plugins (I.E. native code that communicates with the JavaScript engine). If you are an experienced programmer, you may have many functions you&#039;ve developed over the years. Many of those functions can then be packaged as a JavaScript plug-in. In addition, if you have a true web designer who&#039;s versed in CSS, you can style your app without having to deal with vendor specific mechanisms.&lt;/p&gt;
+&lt;p&gt;To summarize, web technology is more prone to public standards (versus private proprietary application programming interfaces (API)). So, the hybrid strategy has a lot of appeal.&lt;/p&gt;
+&lt;p&gt;We will go there, but not right away.&lt;br /&gt;
+&lt;span style=&quot;font-style:italic;&quot;&gt;Are we going to use libraries?&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Again, libraries provide all sorts of benefits. We will go there, but not right now. Our first priority is to train our selves. Initially, we won&#039;t be able to build solution as elegant as jQuery or BackBone/Underscore, etc. However, purely as a learning device, let&#039;s employ plain JavaScript and Document Object Model (DOM) manipulation.&lt;/p&gt;
+&lt;p&gt;Later, when we use those great libraries and frameworks, we&#039;ll have a good knowledge base to start from.&lt;/p&gt;
+&lt;p&gt;Note! this is introduction to a series located &lt;a href=&quot;http://public-action.org/category/technology/javascript&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;div style=font-weight:bold;&gt;About the Author:&lt;/div&gt;
+&lt;div style=&quot;color: #468847;background-color: #dff0d8; padding:12px;width:50%;border: solid 1px; #008500;&quot;&gt;Lorin M Klugman - I&#039;m an experienced developer. My main interest is in new technology. Please use our contact box &lt;a href=&quot;http://public-action.org/contact&quot; target=&quot;_blank&quot;&gt;here&lt;/a&gt; if you are interested in hiring me. Please no recruiters :)
+&lt;/div&gt;
+</description>
+     <comments>http://public-action.org/content/mobile-mobile-application-programmer-journal-javascript#comments</comments>
+ <category domain="http://public-action.org/category/technology/javascript">JavaScript</category>
+ <category domain="http://public-action.org/category/technology/mobile">Mobile</category>
+ <pubDate>Tue, 07 May 2013 18:33:40 +0000</pubDate>
+ <dc:creator>lorin-public-action</dc:creator>
+ <guid isPermaLink="false">113 at http://public-action.org</guid>
+  </item>
+  </channel>
+</rss>
